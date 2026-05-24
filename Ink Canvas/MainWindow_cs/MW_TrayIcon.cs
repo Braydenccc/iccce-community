@@ -94,8 +94,7 @@ namespace Ink_Canvas
                 var taskbarIcon = (TaskbarIcon)Current.Resources["TaskbarTrayIcon"];
                 if (taskbarIcon?.ContextMenu != null)
                 {
-                    // 使用库内置方法显示上下文菜单，内部会调用 SetForegroundWindow
-                    // 使菜单能正确响应点击外部关闭
+                    // 使用库内置方法显示上下文菜单，内部会调用 SetForegroundWindow 使菜单能正确响应点击外部关闭
                     var cursorPos = System.Windows.Forms.Cursor.Position;
                     taskbarIcon.ShowContextMenu(new System.Drawing.Point(cursorPos.X, cursorPos.Y));
                 }
