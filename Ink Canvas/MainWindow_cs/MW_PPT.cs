@@ -1,4 +1,4 @@
-using Ink_Canvas.Controls.Toolbar;
+using Ink_Canvas.Controls.Toolbar.FloatingToolbar;
 using Ink_Canvas.Helpers;
 using iNKORE.UI.WPF.Modern;
 using Microsoft.Office.Core;
@@ -375,15 +375,18 @@ namespace Ink_Canvas
         /// <summary>
         /// 停止PowerPoint应用程序守护
         /// </summary>
-        public void StopPowerPointProcessMonitoring()
+        public void StopPowerPointProcessMonitoring(bool isShutdown = false)
         {
             try
             {
                 // 停止应用程序监控定时器
                 _powerPointProcessMonitorTimer?.Stop();
 
-                // 关闭PowerPoint应用程序
-                ClosePowerPointApplication();
+                // 关闭PowerPoint应用程序（仅在非关机时）
+                if (!isShutdown)
+                {
+                    ClosePowerPointApplication();
+                }
 
                 LogHelper.WriteLogToFile("PowerPoint应用程序守护已停止", LogHelper.LogType.Event);
             }
@@ -536,30 +539,33 @@ namespace Ink_Canvas
         /// 关闭当前的 PowerPoint 应用程序及其所有打开的演示文稿，释放相关 COM 资源并清理静态互操作状态。</summary>
         /// 会尝试关闭所有打开的演示文稿、退出 PowerPoint 进程、释放 COM 对象引用，并将内部 PowerPoint 互操作状态重置为初始值；操作结果会被记录到日志，发生异常时会记录错误并仍然尝试清理互操作状态。
         /// </remarks>
-        private void ClosePowerPointApplication()
+        private void ClosePowerPointApplication(bool isShutdown = false)
         {
             try
             {
                 if (pptApplication != null)
                 {
-                    // 关闭所有打开的演示文稿
-                    if (pptApplication.Presentations.Count > 0)
+                    if (!isShutdown)
                     {
-                        for (int i = pptApplication.Presentations.Count; i >= 1; i--)
+                        // 关闭所有打开的演示文稿
+                        if (pptApplication.Presentations.Count > 0)
                         {
-                            try
+                            for (int i = pptApplication.Presentations.Count; i >= 1; i--)
                             {
-                                pptApplication.Presentations[i].Close();
+                                try
+                                {
+                                    pptApplication.Presentations[i].Close();
+                                }
+                                catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
                             }
-                            catch (Exception ex) { System.Diagnostics.Debug.WriteLine(ex); }
                         }
+
+                        // 退出PowerPoint应用程序
+                        pptApplication.Quit();
+
+                        // 释放COM对象
+                        Marshal.ReleaseComObject(pptApplication);
                     }
-
-                    // 退出PowerPoint应用程序
-                    pptApplication.Quit();
-
-                    // 释放COM对象
-                    Marshal.ReleaseComObject(pptApplication);
                     pptApplication = null;
                 }
 
@@ -643,13 +649,13 @@ namespace Ink_Canvas
         /// <remarks>
         /// 操作包括停止并释放 PPT 管理器、墨迹管理器和长按计时器，停止 PowerPoint 进程监控，关闭 PowerPoint 应用并清除静态 COM/互操作状态；所有异常会被捕获并记录为错误日志。
         /// </remarks>
-        private void DisposePPTManagers()
+        private void DisposePPTManagers(bool isShutdown = false)
         {
             try
             {
                 if (_pptManager != null)
                 {
-                    _pptManager.StopMonitoring(isShutdown: true);
+                    _pptManager.StopMonitoring(isShutdown: isShutdown);
                     _pptManager.Dispose();
                     _pptManager = null;
                 }
@@ -662,7 +668,7 @@ namespace Ink_Canvas
 
                 _pptUIManager = null;
 
-                StopPowerPointProcessMonitoring();
+                StopPowerPointProcessMonitoring(isShutdown);
                 _powerPointProcessMonitorTimer = null;
 
                 ClearStaticInteropState();
@@ -674,6 +680,32 @@ namespace Ink_Canvas
             catch (Exception ex)
             {
                 LogHelper.WriteLogToFile($"释放PPT管理器失败: {ex}", LogHelper.LogType.Error);
+            }
+        }
+
+        internal void UnloadPPTModuleForShutdown()
+        {
+            try
+            {
+                if (Dispatcher.CheckAccess())
+                {
+                    DisposePPTManagers(isShutdown: true);
+                    return;
+                }
+
+                if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished) return;
+
+                Dispatcher.Invoke(() => DisposePPTManagers(isShutdown: true), DispatcherPriority.Send);
+            }
+            catch (TaskCanceledException)
+            {
+            }
+            catch (ObjectDisposedException)
+            {
+            }
+            catch (Exception ex)
+            {
+                LogHelper.WriteLogToFile($"关机时卸载PPT模块失败: {ex}", LogHelper.LogType.Error);
             }
         }
 
@@ -853,6 +885,8 @@ namespace Ink_Canvas
                     {
                         LogHelper.WriteLogToFile("PPT连接已断开", LogHelper.LogType.Event);
                         _singlePPTInkManager?.ClearAllStrokes();
+                        CollapseAllPptNavBarPreviews();
+                        ResetPptEnhancedPreviewCache();
                         _exitPPTModeAfterDisconnectTimer?.Stop();
                         _exitPPTModeAfterDisconnectTimer = null;
                         _pptUIManager?.UpdateSlideShowStatus(false);
@@ -992,7 +1026,7 @@ namespace Ink_Canvas
 
                     if (!isInSlideShow)
                     {
-                        ResetPptEnhancedPreviewCache();
+                        CollapseAllPptNavBarPreviews();
                     }
 
                     // 检查主窗口可见性（用于仅PPT模式）
@@ -1386,7 +1420,6 @@ namespace Ink_Canvas
             try
             {
                 await Application.Current.Dispatcher.InvokeAsync(() => CollapseAllPptNavBarPreviews());
-                ResetPptEnhancedPreviewCache();
 
                 if (Settings.Automation.IsAutoFoldAfterPPTSlideShow && !isFloatingBarFolded)
                 {
@@ -3020,7 +3053,6 @@ namespace Ink_Canvas
             try
             {
                 await Application.Current.Dispatcher.InvokeAsync(() => CollapseAllPptNavBarPreviews());
-                ResetPptEnhancedPreviewCache();
 
                 if (Settings.Automation.IsAutoFoldAfterPPTSlideShow && !isFloatingBarFolded)
                 {

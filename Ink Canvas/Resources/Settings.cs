@@ -1,4 +1,4 @@
-using Ink_Canvas.Controls.Toolbar;
+using Ink_Canvas.Controls.Toolbar.FloatingToolbar;
 using Newtonsoft.Json;
 using OSVersionExtension;
 using System;
@@ -275,8 +275,6 @@ namespace Ink_Canvas
         public bool IsEnableTwoFingerZoom { get; set; } = true;
         [JsonProperty("isEnableTwoFingerTranslate")]
         public bool IsEnableTwoFingerTranslate { get; set; } = true;
-        [JsonProperty("AutoSwitchTwoFingerGesture")]
-        public bool AutoSwitchTwoFingerGesture { get; set; } = true;
         [JsonProperty("isEnableTwoFingerRotation")]
         public bool IsEnableTwoFingerRotation { get; set; }
         [JsonProperty("isEnableTwoFingerRotationOnSelection")]
@@ -378,6 +376,14 @@ namespace Ink_Canvas
         CloseApp = 9
     }
 
+    public enum ToolbarPosition
+    {
+        Right = 0,
+        Left = 1,
+        Top = 2,
+        Bottom = 3
+    }
+
     public class Appearance
     {
         [JsonProperty("isColorfulViewboxFloatingBar")]
@@ -442,22 +448,6 @@ namespace Ink_Canvas
         // 浮动栏按钮显示控制
         [JsonProperty("useLegacyFloatingBarUI")]
         public bool UseLegacyFloatingBarUI { get; set; } = false;
-        [JsonProperty("isShowShapeButton")]
-        public bool IsShowShapeButton { get; set; } = true;
-        [JsonProperty("isShowUndoButton")]
-        public bool IsShowUndoButton { get; set; } = true;
-        [JsonProperty("isShowRedoButton")]
-        public bool IsShowRedoButton { get; set; } = true;
-        [JsonProperty("isShowClearButton")]
-        public bool IsShowClearButton { get; set; } = true;
-        [JsonProperty("isShowWhiteboardButton")]
-        public bool IsShowWhiteboardButton { get; set; } = true;
-        [JsonProperty("isShowHideButton")]
-        public bool IsShowHideButton { get; set; } = true;
-        [JsonProperty("isShowLassoSelectButton")]
-        public bool IsShowLassoSelectButton { get; set; } = true;
-        [JsonProperty("isShowClearAndMouseButton")]
-        public bool IsShowClearAndMouseButton { get; set; } = true;
         [JsonProperty("eraserDisplayOption")]
         public int EraserDisplayOption { get; set; }
         [JsonProperty("isShowQuickColorPalette")]
@@ -485,6 +475,18 @@ namespace Ink_Canvas
 
         [JsonProperty("allowDragSidePanel")]
         public bool AllowDragSidePanel { get; set; } = true;
+
+        [JsonProperty("toolbarPosition")]
+        public ToolbarPosition ToolbarPosition { get; set; } = ToolbarPosition.Right;
+
+        [JsonProperty("reverseToolbarContent")]
+        public bool ReverseToolbarContent { get; set; } = false;
+
+        [JsonProperty("autoFlipWhenSpaceInsufficient")]
+        public bool AutoFlipWhenSpaceInsufficient { get; set; } = true;
+
+        [JsonProperty("flipContentOnAutoFlip")]
+        public bool FlipContentOnAutoFlip { get; set; } = false;
 
     }
 

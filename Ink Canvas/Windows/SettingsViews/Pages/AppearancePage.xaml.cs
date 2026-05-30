@@ -127,8 +127,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 BtnHitokotoCustomize.Visibility = settings.Appearance.ChickenSoupSource == 3 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private MainWindow GetMainWindow() => Application.Current.MainWindow as MainWindow;
-
         private static void SelectComboBoxItemByTag(ComboBox comboBox, string tag)
         {
             if (comboBox == null) return;
@@ -155,8 +153,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             {
                 SettingsManager.Settings.Appearance.Theme = ComboBoxTheme.SelectedIndex;
                 SettingsManager.SaveSettingsToFile();
-                var mw = GetMainWindow();
-                if (mw != null) mw.ApplyTheme(ComboBoxTheme.SelectedIndex);
+                SettingsActionHub.OnThemeChanged(ComboBoxTheme.SelectedIndex);
             }
             catch (Exception ex) { Debug.WriteLine($"切换主题时出错: {ex.Message}"); }
         }
@@ -176,32 +173,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 };
                 SettingsManager.Settings.Appearance.Language = language;
                 SettingsManager.SaveSettingsToFile();
-                LocalizationHelper.TrySetCulture(language);
-                var mw = GetMainWindow();
-                if (mw != null)
-                {
-                    mw._isReloadingForLanguageChange = true;
-                    Dispatcher.BeginInvoke(new Action(() =>
-                    {
-                        try
-                        {
-                            var newWindow = new MainWindow
-                            {
-                                WindowState = mw.WindowState,
-                                Left = mw.Left,
-                                Top = mw.Top
-                            };
-                            newWindow.Show();
-                            Application.Current.MainWindow = newWindow;
-                            mw.Close();
-                        }
-                        catch (Exception ex2)
-                        {
-                            Debug.WriteLine($"重建主窗口以应用语言时出错: {ex2.Message}");
-                            mw._isReloadingForLanguageChange = false;
-                        }
-                    }), DispatcherPriority.ApplicationIdle);
-                }
+                SettingsActionHub.OnLanguageChanged(language);
             }
             catch (Exception ex) { Debug.WriteLine($"切换界面语言时出错: {ex.Message}"); }
         }
@@ -232,13 +204,12 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (!_isLoaded) return;
             SettingsManager.Settings.Appearance.FloatingBarImg = ComboBoxFloatingBarImg.SelectedIndex;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null) mw.UpdateFloatingBarIcon();
+            SettingsActionHub.OnFloatingBarImgChanged();
         }
 
         private void ButtonAddCustomIcon_Click(object sender, RoutedEventArgs e)
         {
-            var mw = GetMainWindow();
+            var mw = Application.Current.MainWindow as MainWindow;
             if (mw == null) return;
             AddCustomIconWindow dialog = new AddCustomIconWindow(mw);
             dialog.Owner = mw;
@@ -251,7 +222,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
 
         private void ButtonManageCustomIcons_Click(object sender, RoutedEventArgs e)
         {
-            var mw = GetMainWindow();
+            var mw = Application.Current.MainWindow as MainWindow;
             if (mw == null) return;
             CustomIconWindow dialog = new CustomIconWindow(mw);
             dialog.Owner = mw;
@@ -275,12 +246,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             }
             SettingsManager.Settings.Appearance.ViewboxBlackBoardScaleTransformValue = val;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null)
-            {
-                mw.ViewboxBlackboardCenterSideScaleTransform.ScaleX = val;
-                mw.ViewboxBlackboardCenterSideScaleTransform.ScaleY = val;
-            }
+            SettingsActionHub.OnBlackBoardScaleChanged(val);
         }
 
         private void ToggleSwitchEnableTimeDisplayInWhiteboardMode_Toggled(object sender, RoutedEventArgs e)
@@ -288,13 +254,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (!_isLoaded) return;
             SettingsManager.Settings.Appearance.EnableTimeDisplayInWhiteboardMode = CardEnableTimeDisplayInWhiteboardMode.IsOn;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null && mw.currentMode == 1)
-            {
-                var vis = CardEnableTimeDisplayInWhiteboardMode.IsOn ? Visibility.Visible : Visibility.Collapsed;
-                mw.WaterMarkTime.Visibility = vis;
-                mw.WaterMarkDate.Visibility = vis;
-            }
+            SettingsActionHub.OnTimeDisplayInWhiteboardChanged(CardEnableTimeDisplayInWhiteboardMode.IsOn);
         }
 
         private void ToggleSwitchEnableChickenSoupInWhiteboardMode_Toggled(object sender, RoutedEventArgs e)
@@ -302,11 +262,9 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (!_isLoaded) return;
             SettingsManager.Settings.Appearance.EnableChickenSoupInWhiteboardMode = CardEnableChickenSoupInWhiteboardMode.IsOn;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null && mw.currentMode == 1 && CardEnableTimeDisplayInWhiteboardMode.IsOn)
-            {
-                mw.BlackBoardWaterMark.Visibility = CardEnableChickenSoupInWhiteboardMode.IsOn ? Visibility.Visible : Visibility.Collapsed;
-            }
+            SettingsActionHub.OnChickenSoupInWhiteboardChanged(
+                CardEnableChickenSoupInWhiteboardMode.IsOn,
+                CardEnableTimeDisplayInWhiteboardMode.IsOn);
         }
 
         private void ToggleSwitchUse24HourTimeFormat_Toggled(object sender, RoutedEventArgs e)
@@ -316,7 +274,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             SettingsManager.SaveSettingsToFile();
         }
 
-        private async void ComboBoxChickenSoupSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void ComboBoxChickenSoupSource_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_suppressChickenSoupSourceSelectionChanged || !_isLoaded) return;
             int idx = ComboBoxChickenSoupSource.SelectedIndex;
@@ -326,8 +284,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (BtnHitokotoCustomize != null)
                 BtnHitokotoCustomize.Visibility = idx == 3 ? Visibility.Visible : Visibility.Collapsed;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null) await mw.UpdateChickenSoupTextAsync();
+            SettingsActionHub.OnChickenSoupSourceChanged();
         }
 
         private async void BtnHitokotoCustomize_Click(object sender, RoutedEventArgs e)
@@ -374,7 +331,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
             mainPanel.Children.Add(contentPanel);
 
-            var mw = GetMainWindow();
+            var mw = Application.Current.MainWindow as MainWindow;
             var contentDialog = new ContentDialog
             {
                 Title = ThemeStrings.Theme_Hitokoto_CustomizeTitle,
@@ -394,7 +351,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
                 SettingsManager.SaveSettingsToFile();
                 if (SettingsManager.Settings.Appearance.ChickenSoupSource == 3 && SettingsManager.Settings.Appearance.EnableChickenSoupInWhiteboardMode)
                 {
-                    if (mw != null) await mw.UpdateChickenSoupTextAsync();
+                    SettingsActionHub.OnChickenSoupSourceChanged();
                 }
             }
         }
@@ -425,8 +382,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             }
             SettingsManager.Settings.Appearance.QuickPanelBottomOffset = val;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null) mw.ApplyQuickPanelBottomOffset(val);
+            SettingsActionHub.OnQuickPanelBottomOffsetChanged(val);
         }
 
         private void ComboBoxUnFoldBtnImg_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -434,42 +390,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (!_isLoaded) return;
             SettingsManager.Settings.Appearance.UnFoldButtonImageType = ComboBoxUnFoldBtnImg.SelectedIndex;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null)
-            {
-                mw.ApplySidePanelSettings();
-
-                if (ComboBoxUnFoldBtnImg.SelectedIndex == 0)
-                {
-                    if (mw.RightUnFoldBtnImgChevron != null)
-                    {
-                        mw.RightUnFoldBtnImgChevron.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/new-icons/unfold-chevron.png"));
-                        mw.RightUnFoldBtnImgChevron.Width = 14; mw.RightUnFoldBtnImgChevron.Height = 14;
-                        mw.RightUnFoldBtnImgChevron.RenderTransform = new RotateTransform(180);
-                    }
-                    if (mw.LeftUnFoldBtnImgChevron != null)
-                    {
-                        mw.LeftUnFoldBtnImgChevron.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/new-icons/unfold-chevron.png"));
-                        mw.LeftUnFoldBtnImgChevron.Width = 14; mw.LeftUnFoldBtnImgChevron.Height = 14;
-                        mw.LeftUnFoldBtnImgChevron.RenderTransform = null;
-                    }
-                }
-                else if (ComboBoxUnFoldBtnImg.SelectedIndex == 1)
-                {
-                    if (mw.RightUnFoldBtnImgChevron != null)
-                    {
-                        mw.RightUnFoldBtnImgChevron.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/new-icons/pen-white.png"));
-                        mw.RightUnFoldBtnImgChevron.Width = 18; mw.RightUnFoldBtnImgChevron.Height = 18;
-                        mw.RightUnFoldBtnImgChevron.RenderTransform = null;
-                    }
-                    if (mw.LeftUnFoldBtnImgChevron != null)
-                    {
-                        mw.LeftUnFoldBtnImgChevron.Source = new BitmapImage(new Uri("pack://application:,,,/Resources/new-icons/pen-white.png"));
-                        mw.LeftUnFoldBtnImgChevron.Width = 18; mw.LeftUnFoldBtnImgChevron.Height = 18;
-                        mw.LeftUnFoldBtnImgChevron.RenderTransform = null;
-                    }
-                }
-            }
+            SettingsActionHub.OnUnFoldButtonImageTypeChanged(ComboBoxUnFoldBtnImg.SelectedIndex);
         }
 
         #endregion
@@ -481,8 +402,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             if (!_isLoaded) return;
             SettingsManager.Settings.Appearance.UseLegacyFloatingBarUI = CardUseLegacyFloatingBarUI.IsOn;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null) mw.UpdateFloatingBarIcons();
+            SettingsActionHub.OnUseLegacyFloatingBarUIChanged();
         }
 
         private void CardFloatingBarButtons_Click(object sender, RoutedEventArgs e)

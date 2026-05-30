@@ -1,6 +1,7 @@
 using Ink_Canvas.Properties;
 using Ink_Canvas.Helpers;
 using Ink_Canvas.Windows.SettingsViews.Helpers;
+using Ink_Canvas.Resources;
 using System;
 using System.Diagnostics;
 using System.Windows;
@@ -42,6 +43,35 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
 
             ViewboxFloatingBarOpacityValueSlider.Value = settings.Appearance.ViewboxFloatingBarOpacityValue;
             ViewboxFloatingBarOpacityInPPTValueSlider.Value = settings.Appearance.ViewboxFloatingBarOpacityInPPTValue;
+
+            // 加载工具栏位置
+            string positionTag = settings.Appearance.ToolbarPosition.ToString();
+            foreach (ComboBoxItem item in ToolbarPositionComboBox.Items)
+            {
+                if ((string)item.Tag == positionTag)
+                {
+                    ToolbarPositionComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            // 加载翻转内容设置
+            if (CardReverseToolbarContent != null)
+            {
+                CardReverseToolbarContent.IsOn = settings.Appearance.ReverseToolbarContent;
+            }
+
+            // 加载自动翻转设置
+            if (ToggleSwitchAutoFlipWhenSpaceInsufficient != null)
+            {
+                ToggleSwitchAutoFlipWhenSpaceInsufficient.IsOn = settings.Appearance.AutoFlipWhenSpaceInsufficient;
+            }
+
+            // 加载自动翻转后翻转组件内容设置
+            if (ToggleSwitchFlipContentOnAutoFlip != null)
+            {
+                ToggleSwitchFlipContentOnAutoFlip.IsOn = settings.Appearance.FlipContentOnAutoFlip;
+            }
         }
 
         private void UpdateAllSliderTexts()
@@ -67,8 +97,6 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             textBlock.Text = string.Format(format, slider.Value);
         }
 
-        private MainWindow GetMainWindow() => Application.Current.MainWindow as MainWindow;
-
         private void ViewboxFloatingBarScaleTransformValueSlider_ValueChanged(object sender, RoutedEventArgs e)
         {
             UpdateSliderText(ViewboxFloatingBarScaleTransformValueSlider, ViewboxFloatingBarScaleSliderText, "{0:F2}x");
@@ -87,16 +115,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             double actualScale = clampedVal;
             UpdateFloatingBarActualScaleText();
 
-            var mw = GetMainWindow();
-            if (mw != null)
-            {
-                mw.ViewboxFloatingBarScaleTransform.ScaleX = actualScale;
-                mw.ViewboxFloatingBarScaleTransform.ScaleY = actualScale;
-                if (mw.IsInPptPresentationMode)
-                    mw.ViewboxFloatingBarMarginAnimation(60);
-                else
-                    mw.ViewboxFloatingBarMarginAnimation(100, true);
-            }
+            SettingsActionHub.OnFloatingBarScaleChanged(actualScale);
         }
 
         private void ViewboxFloatingBarOpacityValueSlider_ValueChanged(object sender, RoutedEventArgs e)
@@ -112,8 +131,7 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             }
             SettingsManager.Settings.Appearance.ViewboxFloatingBarOpacityValue = val;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null) mw.ViewboxFloatingBar.Opacity = val;
+            SettingsActionHub.OnFloatingBarOpacityChanged(val);
         }
 
         private void ViewboxFloatingBarOpacityInPPTValueSlider_ValueChanged(object sender, RoutedEventArgs e)
@@ -129,11 +147,48 @@ namespace Ink_Canvas.Windows.SettingsViews.Pages
             }
             SettingsManager.Settings.Appearance.ViewboxFloatingBarOpacityInPPTValue = val;
             SettingsManager.SaveSettingsToFile();
-            var mw = GetMainWindow();
-            if (mw != null && mw.currentMode == 2)
+            SettingsActionHub.OnFloatingBarOpacityInPPTChanged(val);
+        }
+
+        private void ToolbarPositionComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (!_isLoaded) return;
+            if (ToolbarPositionComboBox.SelectedItem is not ComboBoxItem selectedItem) return;
+
+            if (Enum.TryParse<ToolbarPosition>((string)selectedItem.Tag, out var position))
             {
-                mw.ViewboxFloatingBar.Opacity = val;
+                SettingsManager.Settings.Appearance.ToolbarPosition = position;
+                SettingsManager.SaveSettingsToFile();
+                SettingsActionHub.OnToolbarPositionChanged(position);
             }
+        }
+
+        private void ReverseToolbarContentToggleSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded) return;
+            if (CardReverseToolbarContent == null) return;
+            
+            SettingsManager.Settings.Appearance.ReverseToolbarContent = CardReverseToolbarContent.IsOn;
+            SettingsManager.SaveSettingsToFile();
+            SettingsActionHub.OnReverseToolbarContentChanged(CardReverseToolbarContent.IsOn);
+        }
+
+        private void AutoFlipWhenSpaceInsufficientToggleSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded) return;
+            if (ToggleSwitchAutoFlipWhenSpaceInsufficient == null) return;
+
+            SettingsManager.Settings.Appearance.AutoFlipWhenSpaceInsufficient = ToggleSwitchAutoFlipWhenSpaceInsufficient.IsOn;
+            SettingsManager.SaveSettingsToFile();
+        }
+
+        private void FlipContentOnAutoFlipToggleSwitch_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (!_isLoaded) return;
+            if (ToggleSwitchFlipContentOnAutoFlip == null) return;
+
+            SettingsManager.Settings.Appearance.FlipContentOnAutoFlip = ToggleSwitchFlipContentOnAutoFlip.IsOn;
+            SettingsManager.SaveSettingsToFile();
         }
     }
 }
